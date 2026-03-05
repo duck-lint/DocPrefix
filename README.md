@@ -24,7 +24,7 @@ Repo contents:
 
 ## Quick start (recommended)
 
-Use the packaged Windows x64 executable from GitHub Releases.
+### Use the packaged Windows x64 executable from GitHub Releases.
 
 Workflow:
 1) Select a folder  
