@@ -1,75 +1,91 @@
-## Document Prefix Renamer (GUI)
+# Document Prefix Renamer (DocPrefix)
 
-This repository includes a lightweight Windows GUI for the document prefix renamer:
+A lightweight Windows tool for bulk-renaming files by applying or updating a filename prefix.
 
-- `doc_prefix_gui.pyw` (Tkinter GUI, no third-party dependencies)
-- `doc_prefix.py` (shared core rename logic + CLI)
+Default prefix format:
+`YYYYMM - Lastname, Firstname - <existing filename remainder>`
 
-The GUI reuses the same planning/apply logic as the CLI and uses this default naming format:
+Repo contents:
+- `doc_prefix_gui.pyw` — Tkinter GUI (no third-party dependencies)
+- `doc_prefix.py` — shared core rename logic + CLI
 
-`YYYYMM - Lastname, Firstname - <existing filename>`
+## What it does
 
-### Features
-
-- Preview-first workflow (safe by default)
-- Recursive mode
+- Preview-first workflow (nothing changes until Apply)
+- Recursive mode (includes subfolders)
 - Force mode (re-prefix already-prefixed files)
-- Conflict handling: `skip`, `suffix`, `overwrite`
-- Editable prefix template in the GUI (default preserves the format above)
-  - Supported placeholders: `{yyyymm}`, `{last}`, `{first}`
+- Conflict handling: skip / suffix / overwrite
+- Editable prefix template in the GUI  
+  Supported placeholders: `{yyyymm}`, `{last}`, `{first}`
 - Date modes:
   - Current month
   - File modified time (mtime)
-  - Custom `YYYYMM`
+  - Custom YYYYMM
 
-### Safety Notes
+## Quick start (recommended)
 
-- Recursive mode does not follow directory symlinks; symlinked directories are skipped in preview.
-- On Windows, invalid destination basenames (reserved device names, trailing dot/space) are skipped with a clear reason.
+Use the packaged Windows x64 executable from GitHub Releases.
 
-## Windows: Create a Desktop Shortcut (No Need to Open the Script)
+Workflow:
+1) Select a folder  
+2) Set First/Last and date mode  
+3) Click Preview  
+4) Click Apply (after confirmation)
 
-You can launch the GUI directly from a Desktop shortcut without opening the script file.
+## Run from source (developer / verification)
 
-### Option 1 (Recommended): `pyw` launcher
+Requires Python 3.x (Tkinter included with standard Python on Windows).
 
-Use the Windows Python GUI launcher (`pyw.exe`, per PEP 397). This avoids opening a console window.
+CLI help:
+- `python doc_prefix.py --help`
 
-Shortcut **Target** example:
+Run tests:
+- `python -m unittest -v`
 
-```text
-pyw -3 "C:\full\path\to\doc_prefix_gui.pyw"
-```
+Packaging smoke test:
+- `python packaging/smoke_test.py`
 
-### Option 2: Direct `pythonw.exe` path (does not require PATH)
+## Safety and constraints
 
-If `pyw` is not available on your PATH, point the shortcut directly to `pythonw.exe`.
+- Preview-first: no changes occur until Apply is pressed.
+- Recursive mode does not follow directory symlinks. Symlinked directories are skipped in preview with `skip:symlink-dir`.  
+  (This prevents accidental traversal outside the selected folder boundary.)
+- On Windows, invalid destination basenames are skipped at plan time with a clear reason:
+  - reserved device names: `CON`, `PRN`, `AUX`, `NUL`, `COM1-9`, `LPT1-9` (including forms like `CON.txt`)
+  - basenames ending in a dot or space  
+  These appear as `skip:invalid-destination:<detail>`.
 
-Shortcut **Target** example:
+## Preview reason codes (examples)
 
-```text
-"C:\Users\<you>\AppData\Local\Programs\Python\Python3x\pythonw.exe" "C:\full\path\to\doc_prefix_gui.pyw"
-```
+Preview output includes explicit skip reasons, such as:
+- `skip:already-prefixed`
+- `skip:conflict-planned`
+- `skip:mtime-unavailable`
+- `skip:symlink-dir`
+- `skip:invalid-destination:<detail>`
 
-`pythonw.exe` (and `.pyw` files) run without opening a console window.
+## GUI to CLI mapping (reference)
 
-### How to Create the Shortcut
-
-1. Right-click your Desktop and choose **New > Shortcut**.
-2. Paste one of the **Target** commands above.
-3. Name it something like `Document Prefix Renamer`.
-4. (Optional) Right-click the shortcut > **Properties** > **Change Icon...** to assign a custom icon.
-
-## GUI to CLI Mapping (Reference)
-
-- Directory field -> positional `dir`
-- First name / Last name -> `--first` / `--last`
-- Recursive -> `--recursive`
-- Force -> `--force`
-- Conflict dropdown -> `--conflict skip|suffix|overwrite`
+- Directory field → positional `dir`
+- First name / Last name → `--first` / `--last`
+- Recursive → `--recursive`
+- Force → `--force`
+- Conflict dropdown → `--conflict skip|suffix|overwrite`
 - Date mode:
-  - Current month -> default behavior
-  - Use file mtime -> `--use-mtime`
-  - Custom YYYYMM -> `--date YYYYMM`
-- Preview button -> dry-run preview (no `--apply`)
-- Apply button -> executes renames (`--apply`) after confirmation
+  - Current month → default behavior
+  - Use file mtime → `--use-mtime`
+  - Custom YYYYMM → `--date YYYYMM`
+- Preview button → dry-run preview (no `--apply`)
+- Apply button → executes renames (`--apply`) after confirmation
+
+## Windows: Desktop shortcut (source-only)
+
+If you are running the GUI from source (not using the packaged exe), you can launch it via a shortcut without opening a console.
+
+Option 1 (recommended): `pyw` launcher (PEP 397)
+- Target example:
+  - `pyw -3 "C:\full\path\to\doc_prefix_gui.pyw"`
+
+Option 2: direct `pythonw.exe` path
+- Target example:
+  - `"C:\Users\<you>\AppData\Local\Programs\Python\Python3x\pythonw.exe" "C:\full\path\to\doc_prefix_gui.pyw"`
