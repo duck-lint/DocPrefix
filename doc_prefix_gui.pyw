@@ -257,7 +257,7 @@ class DocPrefixGui(ttk.Frame):
 
         first = self.first_var.get().strip()
         last = self.last_var.get().strip()
-        template = self.template_var.get().strip()
+        template = self.template_var.get()
         if not first:
             raise ValueError("First name is required.")
         if not last:

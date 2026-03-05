@@ -22,6 +22,11 @@ The GUI reuses the same planning/apply logic as the CLI and uses this default na
   - File modified time (mtime)
   - Custom `YYYYMM`
 
+### Safety Notes
+
+- Recursive mode does not follow directory symlinks; symlinked directories are skipped in preview.
+- On Windows, invalid destination basenames (reserved device names, trailing dot/space) are skipped with a clear reason.
+
 ## Windows: Create a Desktop Shortcut (No Need to Open the Script)
 
 You can launch the GUI directly from a Desktop shortcut without opening the script file.

@@ -1,4 +1,5 @@
 import io
+import os
 import sys
 import tempfile
 import unittest
@@ -212,6 +213,75 @@ class DocPrefixTests(unittest.TestCase):
             self.assertEqual(len(rename_items), 1)
             self.assertEqual(sum(it.reason == "skip:conflict-planned" for it in plan), 1)
 
+    def test_recursive_skips_symlink_directories(self) -> None:
+        with tempfile.TemporaryDirectory() as td, tempfile.TemporaryDirectory() as outside_td:
+            root = Path(td)
+            outside = Path(outside_td)
+            self.write_file(root, "inside.txt", "A")
+            self.write_file(outside, "outside.txt", "B")
+            link_path = root / "outside_link"
+
+            try:
+                os.symlink(outside, link_path, target_is_directory=True)
+            except (OSError, NotImplementedError, AttributeError) as exc:
+                self.skipTest(f"Symlink creation unavailable in this environment: {exc}")
+
+            plan = doc_prefix.plan_renames(
+                root,
+                first="Jane",
+                last="Doe",
+                recursive=True,
+                force=False,
+                conflict="suffix",
+                date_yyyymm="202604",
+                use_mtime=False,
+            )
+
+            self.assertTrue(
+                any(it.reason == "skip:symlink-dir" and it.src == link_path for it in plan)
+            )
+            self.assertFalse(any("outside.txt" in str(it.src) for it in plan))
+            self.assertTrue(
+                any(it.reason.startswith("rename") and it.src.name == "inside.txt" for it in plan)
+            )
+
+    @unittest.skipUnless(os.name == "nt", "Windows-only reserved-name behavior")
+    def test_windows_reserved_name_helper_covers_plain_and_extension(self) -> None:
+        self.assertTrue(doc_prefix.is_windows_reserved_name("CON"))
+        self.assertTrue(doc_prefix.is_windows_reserved_name("con.txt"))
+        self.assertFalse(doc_prefix.is_windows_reserved_name("console.txt"))
+
+    @unittest.skipUnless(os.name == "nt", "Windows-only trailing basename behavior")
+    def test_windows_bad_trailing_helper_detects_dot_or_space(self) -> None:
+        self.assertTrue(doc_prefix.is_windows_bad_trailing("foo."))
+        self.assertTrue(doc_prefix.is_windows_bad_trailing("foo "))
+        self.assertFalse(doc_prefix.is_windows_bad_trailing("foo.txt"))
+
+    @unittest.skipUnless(os.name == "nt", "Windows-only reserved-name planning behavior")
+    def test_windows_reserved_destination_is_skipped_during_planning(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            src = self.write_file(root, "txt", "A")
+
+            plan = doc_prefix.plan_renames(
+                root,
+                first="Jane",
+                last="Doe",
+                recursive=False,
+                force=False,
+                conflict="suffix",
+                date_yyyymm="202604",
+                use_mtime=False,
+                template="CON.",
+            )
+
+            self.assertEqual(len(plan), 1)
+            self.assertEqual(plan[0].src, src)
+            self.assertEqual(plan[0].dst, src)
+            self.assertEqual(
+                plan[0].reason, "skip:invalid-destination:reserved-device-name"
+            )
+
     def test_overwrite_rejects_duplicate_planned_destinations(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
@@ -278,6 +348,55 @@ class DocPrefixTests(unittest.TestCase):
             out = stdout.getvalue()
             self.assertIn("202601 - Doe, Jane - a.txt", out)
             self.assertIn("202601 - Doe, Jane - b.txt", out)
+
+    def test_use_mtime_called_once_per_file(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            self.write_file(root, "a.txt", "A")
+            self.write_file(root, "b.txt", "B")
+
+            with mock.patch.object(
+                doc_prefix, "yyyymm_from_mtime", side_effect=["202601", "202602"]
+            ) as mock_mtime:
+                plan = doc_prefix.plan_renames(
+                    root,
+                    first="Jane",
+                    last="Doe",
+                    recursive=False,
+                    force=False,
+                    conflict="suffix",
+                    date_yyyymm=None,
+                    use_mtime=True,
+                )
+
+            self.assertEqual(mock_mtime.call_count, 2)
+            rename_dsts = [it.dst.name for it in plan if it.reason.startswith("rename")]
+            self.assertIn("202601 - Doe, Jane - a.txt", rename_dsts)
+            self.assertIn("202602 - Doe, Jane - b.txt", rename_dsts)
+
+    def test_use_mtime_error_skips_file_with_reason(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            src = self.write_file(root, "a.txt", "A")
+
+            with mock.patch.object(
+                doc_prefix, "yyyymm_from_mtime", side_effect=OSError("denied")
+            ):
+                plan = doc_prefix.plan_renames(
+                    root,
+                    first="Jane",
+                    last="Doe",
+                    recursive=False,
+                    force=False,
+                    conflict="suffix",
+                    date_yyyymm=None,
+                    use_mtime=True,
+                )
+
+            self.assertEqual(len(plan), 1)
+            self.assertEqual(plan[0].src, src)
+            self.assertEqual(plan[0].dst, src)
+            self.assertEqual(plan[0].reason, "skip:mtime-unavailable")
 
     def test_overwrite_cycle_swap_uses_temp_staging(self) -> None:
         with tempfile.TemporaryDirectory() as td:

@@ -106,12 +106,73 @@ class PlanItem:
     reason: str  # "rename" | "skip:..."
 
 
-def iter_files(root: Path, recursive: bool) -> Iterator[Path]:
+WINDOWS_RESERVED_DEVICE_NAMES = {
+    "con",
+    "prn",
+    "aux",
+    "nul",
+    *(f"com{n}" for n in range(1, 10)),
+    *(f"lpt{n}" for n in range(1, 10)),
+}
+
+
+def is_windows_reserved_name(name: str) -> bool:
+    normalized = name.rstrip(" .")
+    if not normalized:
+        return False
+    device_stem = normalized.split(".", 1)[0].casefold()
+    return device_stem in WINDOWS_RESERVED_DEVICE_NAMES
+
+
+def is_windows_bad_trailing(name: str) -> bool:
+    return name.endswith(" ") or name.endswith(".")
+
+
+def invalid_windows_destination_reason(name: str) -> Optional[str]:
+    if os.name != "nt":
+        return None
+    if is_windows_bad_trailing(name):
+        return "trailing-dot-space"
+    if is_windows_reserved_name(name):
+        return "reserved-device-name"
+    return None
+
+
+def discover_files(
+    root: Path, recursive: bool
+) -> tuple[list[Path], list[Path]]:
+    files: list[Path] = []
+    skipped_symlink_dirs: list[Path] = []
+
     if recursive:
-        files = [p for p in root.rglob("*") if p.is_file()]
+        for dirpath, dirnames, filenames in os.walk(root, topdown=True, followlinks=False):
+            current = Path(dirpath)
+            dirnames.sort()
+            filenames.sort()
+
+            kept_dirnames: list[str] = []
+            for dirname in dirnames:
+                dpath = current / dirname
+                if dpath.is_symlink():
+                    skipped_symlink_dirs.append(dpath)
+                else:
+                    kept_dirnames.append(dirname)
+            dirnames[:] = kept_dirnames
+
+            for filename in filenames:
+                p = current / filename
+                if p.is_file():
+                    files.append(p)
     else:
         files = [p for p in root.iterdir() if p.is_file()]
+
     files.sort(key=lambda p: p.relative_to(root).as_posix())
+    skipped_symlink_dirs.sort(key=lambda p: p.relative_to(root).as_posix())
+    return files, skipped_symlink_dirs
+
+
+def iter_files(root: Path, recursive: bool) -> Iterator[Path]:
+    files, _skipped_symlink_dirs = discover_files(root, recursive)
     yield from files
 
 
@@ -188,29 +249,38 @@ def plan_renames(
     template: str = DEFAULT_PREFIX_TEMPLATE,
 ) -> list[PlanItem]:
     items: list[PlanItem] = []
-    reserved_dst_keys: set[str] = set()
-    desired_first = sanitize_component(first).casefold()
-    desired_last = sanitize_component(last).casefold()
+    files, skipped_symlink_dirs = discover_files(root, recursive)
 
-    for p in iter_files(root, recursive=recursive):
+    for dpath in skipped_symlink_dirs:
+        items.append(PlanItem(dpath, dpath, "skip:symlink-dir"))
+
+    reserved_dst_keys: set[str] = set()
+    first_s = sanitize_component(first)
+    last_s = sanitize_component(last)
+    desired_first = first_s.casefold()
+    desired_last = last_s.casefold()
+    validate_prefix_template(template)
+
+    for p in files:
         name = p.name
 
         if date_yyyymm is not None:
             desired_yyyymm = date_yyyymm
         elif use_mtime:
-            desired_yyyymm = yyyymm_from_mtime(p)
+            try:
+                desired_yyyymm = yyyymm_from_mtime(p)
+            except OSError:
+                items.append(PlanItem(p, p, "skip:mtime-unavailable"))
+                continue
         else:
             raise ValueError(
                 "Internal error: date_yyyymm must be provided when not using --use-mtime"
             )
 
-        prefix = build_prefix(
-            first,
-            last,
-            date_yyyymm=date_yyyymm,
-            use_mtime=use_mtime,
-            file_path=p,
-            template=template,
+        prefix = template.format(
+            yyyymm=desired_yyyymm,
+            last=last_s,
+            first=first_s,
         )
 
         if not force:
@@ -236,6 +306,11 @@ def plan_renames(
 
         dst = p.with_name(new_name)
         dst_key = _path_key(dst)
+
+        bad_dst = invalid_windows_destination_reason(dst.name)
+        if bad_dst is not None:
+            items.append(PlanItem(p, p, f"skip:invalid-destination:{bad_dst}"))
+            continue
 
         if dst == p:
             items.append(PlanItem(p, p, "skip:no-change"))
@@ -388,7 +463,9 @@ def main() -> int:
     ap.add_argument("--last", required=True, help="Last name")
 
     ap.add_argument(
-        "--recursive", action="store_true", help="Include files in subfolders"
+        "--recursive",
+        action="store_true",
+        help="Include files in subfolders (symlinked directories are skipped)",
     )
     ap.add_argument(
         "--force",
