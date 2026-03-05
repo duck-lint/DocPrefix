@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Iterable, Iterator, Optional
 from uuid import uuid4
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 # Matches: "202602 - Lastname, Firstname - "
 PREFIX_RE = re.compile(r"^\d{6} - .+?, .+? - ")
