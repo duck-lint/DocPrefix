@@ -20,10 +20,10 @@ from pathlib import Path
 from typing import Iterable, Iterator, Optional
 from uuid import uuid4
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 # Matches: "202602 - Lastname, Firstname - "
-PREFIX_RE = re.compile(r"^\d{6} - .+?, .+? - ")
+PREFIX_RE = re.compile(r"^(?P<yyyymm>\d{6}) - (?P<last>.+?), (?P<first>.+?) - ")
 
 
 WINDOWS_FORBIDDEN = r'<>:"/\|?*'
@@ -175,13 +175,11 @@ def plan_renames(
     template: str = DEFAULT_PREFIX_TEMPLATE,
 ) -> list[PlanItem]:
     items: list[PlanItem] = []
+    desired_first = sanitize_component(first).casefold()
+    desired_last = sanitize_component(last).casefold()
 
     for p in iter_files(root, recursive=recursive):
         name = p.name
-
-        if (not force) and PREFIX_RE.match(name):
-            items.append(PlanItem(p, p, "skip:already-prefixed"))
-            continue
 
         prefix = build_prefix(
             first,
@@ -191,7 +189,23 @@ def plan_renames(
             file_path=p,
             template=template,
         )
-        new_name = prefix + name
+
+        if not force:
+            existing_prefix = PREFIX_RE.match(name)
+            if existing_prefix:
+                existing_last = sanitize_component(existing_prefix.group("last")).casefold()
+                existing_first = sanitize_component(existing_prefix.group("first")).casefold()
+                if existing_last == desired_last and existing_first == desired_first:
+                    items.append(PlanItem(p, p, "skip:already-prefixed"))
+                    continue
+
+                remainder_name = name[existing_prefix.end() :]
+                new_name = prefix + remainder_name
+            else:
+                new_name = prefix + name
+        else:
+            new_name = prefix + name
+
         dst = p.with_name(new_name)
 
         if dst == p:

@@ -83,6 +83,48 @@ class DocPrefixTests(unittest.TestCase):
                 "2",
             )
 
+    def test_non_force_replaces_existing_prefix_when_person_differs(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            src = self.write_file(root, "202602 - Aubry, Madison - a.txt", "A")
+
+            plan = doc_prefix.plan_renames(
+                root,
+                first="test",
+                last="test",
+                recursive=False,
+                force=False,
+                conflict="overwrite",
+                date_yyyymm="202602",
+                use_mtime=False,
+            )
+
+            self.assertEqual(len(plan), 1)
+            self.assertEqual(plan[0].src, src)
+            self.assertEqual(plan[0].reason, "rename")
+            self.assertEqual(plan[0].dst.name, "202602 - test, test - a.txt")
+
+    def test_non_force_skips_when_existing_prefix_matches_person(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            src = self.write_file(root, "202602 - DOE, JANE - a.txt", "A")
+
+            plan = doc_prefix.plan_renames(
+                root,
+                first="jane",
+                last="doe",
+                recursive=False,
+                force=False,
+                conflict="overwrite",
+                date_yyyymm="202602",
+                use_mtime=False,
+            )
+
+            self.assertEqual(len(plan), 1)
+            self.assertEqual(plan[0].src, src)
+            self.assertEqual(plan[0].dst, src)
+            self.assertEqual(plan[0].reason, "skip:already-prefixed")
+
     def test_invalid_date_uses_argparse_error(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             stderr = io.StringIO()
