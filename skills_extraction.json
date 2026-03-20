@@ -1,0 +1,430 @@
+{
+  "repository_summary": {
+    "name": "DocPrefix",
+    "url": "https://github.com/duck-lint/DocPrefix",
+    "version": "0.2.1",
+    "language": "Python 3.x",
+    "platform_target": "Windows (primary), cross-platform core logic",
+    "description": "A safety-focused Windows GUI and CLI tool for bulk file renaming with customizable prefix templates. Implements a two-phase plan-then-apply workflow with explicit skip reason codes, conflict resolution strategies, Windows filesystem safety guards, and symlink traversal prevention. Packaged via PyInstaller with SHA256-verified release artifacts and automated CI/CD.",
+    "line_count": {
+      "core_logic": 550,
+      "gui": 465,
+      "unit_tests": 456,
+      "smoke_tests": 98,
+      "build_script": 206,
+      "ci_workflow": 101,
+      "total_approx": 1936
+    },
+    "runtime_dependencies": "None (stdlib only: tkinter, argparse, pathlib, re, dataclasses, string, datetime, os, shutil, tempfile, unittest)",
+    "build_dependencies": ["PyInstaller 6.11.1"]
+  },
+  "atomic_skills": [
+    {
+      "id": "SK-DP-001",
+      "skill": "Designing two-phase plan-then-apply execution workflows",
+      "evidence": "doc_prefix.py: plan_renames() returns a list of immutable PlanItem objects representing intended operations; apply_plan() executes them separately. GUI and CLI both consume the plan before committing changes.",
+      "evidence_files": ["doc_prefix.py", "doc_prefix_gui.pyw"],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-DP-002",
+      "skill": "Modeling operation outcomes with frozen dataclasses and explicit reason codes",
+      "evidence": "PlanItem is defined as @dataclass(frozen=True) with fields src, dst, and reason. Reason values include 'rename', 'skip:already-prefixed', 'skip:conflict-planned', 'skip:mtime-unavailable', 'skip:symlink-dir', and 'skip:invalid-destination:<detail>'.",
+      "evidence_files": ["doc_prefix.py"],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-DP-003",
+      "skill": "Implementing regex-based structured prefix parsing with named capture groups",
+      "evidence": "PREFIX_RE = re.compile(r\"^(?P<yyyymm>\\d{6}) - (?P<last>.+?), (?P<first>.+?) - \") parses and decomposes existing filename prefixes into components for comparison and replacement.",
+      "evidence_files": ["doc_prefix.py"],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-DP-004",
+      "skill": "Validating customizable string templates using stdlib Formatter introspection",
+      "evidence": "validate_prefix_template() uses string.Formatter().parse() to enumerate placeholders and rejects unknown fields, format specs, or conversions. Error messages enumerate all supported placeholders.",
+      "evidence_files": ["doc_prefix.py", "tests/test_doc_prefix_template_validation.py"],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-DP-005",
+      "skill": "Writing Windows reserved device name detection guards",
+      "evidence": "WINDOWS_RESERVED_DEVICE_NAMES set covers CON, PRN, AUX, NUL, COM1-9, LPT1-9. is_windows_reserved_name() checks both bare names and names with extensions (e.g., 'CON.txt'). Unit tests confirm coverage.",
+      "evidence_files": ["doc_prefix.py", "tests/test_doc_prefix.py"],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-DP-006",
+      "skill": "Detecting invalid Windows trailing characters in filenames",
+      "evidence": "is_windows_bad_trailing() rejects names ending with dots or spaces. invalid_windows_destination_reason() combines reserved-name and trailing-char checks into a single skip-reason decision. Covered by unit tests.",
+      "evidence_files": ["doc_prefix.py", "tests/test_doc_prefix.py"],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-DP-007",
+      "skill": "Preventing directory symlink traversal in recursive filesystem walks",
+      "evidence": "discover_files() identifies and skips symlinked directories during recursive traversal, returning them as a separate skipped list. plan_renames() emits 'skip:symlink-dir' reason codes. Tested with os.symlink in test_recursive_skips_symlink_directories.",
+      "evidence_files": ["doc_prefix.py", "tests/test_doc_prefix.py"],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-DP-008",
+      "skill": "Resolving cyclic rename conflicts via temporary file staging",
+      "evidence": "apply_overwrite_renames() detects when rename chains form cycles (e.g., A→B and B→A) and uses shutil.move to a temp file to break the cycle safely. Unit test test_overwrite_cycle_swap_uses_temp_staging verifies this behavior.",
+      "evidence_files": ["doc_prefix.py", "tests/test_doc_prefix.py"],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-DP-009",
+      "skill": "Implementing pluggable conflict resolution strategies (skip, suffix, overwrite)",
+      "evidence": "plan_renames() accepts a conflict parameter ('skip', 'suffix', 'overwrite') that determines how destination collisions are handled. Each strategy has distinct planning and execution paths. Tested individually in test_suffix_resolves_planned_destination_collision and test_skip_marks_planned_destination_collision.",
+      "evidence_files": ["doc_prefix.py", "tests/test_doc_prefix.py"],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-DP-010",
+      "skill": "Generating non-conflicting file paths with numeric suffix incrementation",
+      "evidence": "choose_nonconflicting_path() appends (1), (2), etc. to the stem of a destination path until no filesystem conflict exists. Used by the 'suffix' conflict resolution strategy.",
+      "evidence_files": ["doc_prefix.py"],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-DP-011",
+      "skill": "Sanitizing filename components by removing forbidden characters and collapsing whitespace",
+      "evidence": "sanitize_component() strips characters forbidden in Windows filenames and normalizes internal whitespace runs to single spaces.",
+      "evidence_files": ["doc_prefix.py"],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-DP-012",
+      "skill": "Extracting date metadata from file modification time (mtime)",
+      "evidence": "yyyymm_from_mtime() reads a file's modification time and formats it as a YYYYMM string. Handles OSError gracefully, returning None on failure. Tested via mock in test_use_mtime_called_once_per_file and test_use_mtime_error_skips_file_with_reason.",
+      "evidence_files": ["doc_prefix.py", "tests/test_doc_prefix.py"],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-DP-013",
+      "skill": "Building CLI interfaces with argparse including mutually dependent options",
+      "evidence": "main() defines a CLI with --first, --last, --recursive, --force, --date, --use-mtime, --conflict, and --apply flags. Validates that --date and --use-mtime are not used together. Returns structured exit codes.",
+      "evidence_files": ["doc_prefix.py"],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-DP-014",
+      "skill": "Constructing Tkinter/ttk desktop GUI layouts with form controls and scrollable preview",
+      "evidence": "DocPrefixGui class builds a multi-section UI with LabelFrame groupings, Entry/Combobox/Checkbutton/Radiobutton controls, a scrollable Text widget for preview, and a status bar. Uses grid layout manager with weight-based resizing.",
+      "evidence_files": ["doc_prefix_gui.pyw"],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-DP-015",
+      "skill": "Binding keyboard shortcuts to GUI actions in Tkinter",
+      "evidence": "F5 and Ctrl+Return are bound to trigger the Preview action. Event binding uses root.bind() with lambda dispatch.",
+      "evidence_files": ["doc_prefix_gui.pyw"],
+      "evidence_strength": "moderate",
+      "transferable": true
+    },
+    {
+      "id": "SK-DP-016",
+      "skill": "Implementing dirty-state tracking to invalidate cached computation on input change",
+      "evidence": "_mark_preview_dirty() is called via trace callbacks on all form variables (StringVar, BooleanVar, IntVar). When any input changes, the cached plan is invalidated, requiring re-preview before apply.",
+      "evidence_files": ["doc_prefix_gui.pyw"],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-DP-017",
+      "skill": "Separating shared logic from UI and CLI entry points for reuse",
+      "evidence": "doc_prefix.py contains all renaming logic, imported by both the GUI (doc_prefix_gui.pyw) and used directly via CLI (main()). Neither UI layer contains rename logic.",
+      "evidence_files": ["doc_prefix.py", "doc_prefix_gui.pyw"],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-DP-018",
+      "skill": "Writing unit tests with temporary filesystem fixtures and cleanup",
+      "evidence": "Tests use tempfile.TemporaryDirectory as context manager, with a write_file() helper to create test fixtures. All filesystem state is cleaned up automatically. 20+ test methods covering planning, execution, edge cases, and error paths.",
+      "evidence_files": ["tests/test_doc_prefix.py"],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-DP-019",
+      "skill": "Using unittest.mock.patch for deterministic testing of time-dependent behavior",
+      "evidence": "test_default_date_computed_once_per_run patches yyyymm_from_now to verify it is called exactly once per plan. test_use_mtime_called_once_per_file and test_use_mtime_error_skips_file_with_reason patch yyyymm_from_mtime to control date output and simulate errors.",
+      "evidence_files": ["tests/test_doc_prefix.py"],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-DP-020",
+      "skill": "Writing end-to-end integration smoke tests for CLI tools",
+      "evidence": "packaging/smoke_test.py runs complete plan-then-apply cycles, creates real files, invokes plan_renames and apply_plan, and asserts final filesystem state. Tests basic renaming and overwrite chain safety scenarios.",
+      "evidence_files": ["packaging/smoke_test.py"],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-DP-021",
+      "skill": "Configuring PyInstaller for GUI application packaging with spec files",
+      "evidence": "docprefix.spec defines entry point (doc_prefix_gui.pyw), path resolution for imports, ONEDIR collection, no UPX (to reduce AV false positives), and console=False for windowless execution.",
+      "evidence_files": ["packaging/docprefix.spec"],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-DP-022",
+      "skill": "Authoring parameterized PowerShell build scripts with virtual environment isolation",
+      "evidence": "build.ps1 uses CmdletBinding with typed parameters (-OneFile, -SkipSmokeTest, -PythonLauncher, -VenvPath, -PyInstallerVersion). Creates a dedicated venv (.venv_packaging), installs pinned build dependencies, and isolates build artifacts from source.",
+      "evidence_files": ["packaging/build.ps1"],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-DP-023",
+      "skill": "Generating SHA256 checksums for build artifact integrity verification",
+      "evidence": "Write-HashLine function in build.ps1 computes SHA256 hashes for release artifacts and writes them to .sha256.txt sidecar files.",
+      "evidence_files": ["packaging/build.ps1"],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-DP-024",
+      "skill": "Designing GitHub Actions workflows with conditional release publishing on git tags",
+      "evidence": "docprefix-windows.yml triggers on push to main, PRs, tags (v*), and manual dispatch. Uses softprops/action-gh-release with if: startsWith(github.ref, 'refs/tags/') to publish release assets only on version tags.",
+      "evidence_files": [".github/workflows/docprefix-windows.yml"],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-DP-025",
+      "skill": "Configuring CI concurrency control with cancel-in-progress",
+      "evidence": "Workflow uses concurrency group keyed to github.ref with cancel-in-progress: true to avoid redundant runs on rapid pushes.",
+      "evidence_files": [".github/workflows/docprefix-windows.yml"],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-DP-026",
+      "skill": "Filtering CI triggers by changed file paths",
+      "evidence": "Workflow uses paths filter on push and pull_request triggers to run only when relevant source, test, packaging, or workflow files change.",
+      "evidence_files": [".github/workflows/docprefix-windows.yml"],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-DP-027",
+      "skill": "Uploading and managing build artifacts in GitHub Actions",
+      "evidence": "Workflow uses actions/upload-artifact@v4 to persist release/ and dist/DocPrefix/ directories. softprops/action-gh-release uploads .zip, .exe, and .sha256.txt to GitHub Releases.",
+      "evidence_files": [".github/workflows/docprefix-windows.yml"],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-DP-028",
+      "skill": "Designing zero-external-dependency Python applications using only stdlib",
+      "evidence": "Runtime imports are exclusively from the Python standard library (pathlib, re, dataclasses, string, argparse, datetime, shutil, tempfile, tkinter). No requirements.txt or pip install needed for execution.",
+      "evidence_files": ["doc_prefix.py", "doc_prefix_gui.pyw"],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-DP-029",
+      "skill": "Using Python type annotations with future annotations for forward references",
+      "evidence": "Both source files use 'from __future__ import annotations' and apply type hints to function signatures (e.g., plan_renames returns list[PlanItem], parameters typed as Path | str, str | None).",
+      "evidence_files": ["doc_prefix.py", "doc_prefix_gui.pyw"],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-DP-030",
+      "skill": "Writing end-user distribution documentation with troubleshooting guidance",
+      "evidence": "README_DISTRIBUTION.txt provides step-by-step usage instructions, explains safety behavior, and includes troubleshooting sections for SmartScreen warnings, antivirus false positives, permissions errors, and files-in-use scenarios.",
+      "evidence_files": ["packaging/README_DISTRIBUTION.txt"],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-DP-031",
+      "skill": "Implementing case-insensitive path comparison for Windows filesystem semantics",
+      "evidence": "plan_renames() tracks planned destinations using case-normalized paths to detect collisions on case-insensitive filesystems (Windows). Conflict detection respects platform path semantics.",
+      "evidence_files": ["doc_prefix.py"],
+      "evidence_strength": "moderate",
+      "transferable": true
+    },
+    {
+      "id": "SK-DP-032",
+      "skill": "Wrapping rename errors with contextual exception handling",
+      "evidence": "apply_plan() catches OSError during rename operations and re-raises with context about which file failed, preserving the original exception chain.",
+      "evidence_files": ["doc_prefix.py", "tests/test_doc_prefix.py"],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-DP-033",
+      "skill": "Validating YYYYMM date format with structured error reporting",
+      "evidence": "parse_yyyymm_arg() validates that the input is exactly 6 digits and represents a valid year/month range, raising argparse.ArgumentTypeError with descriptive messages on failure. Tested in test_invalid_date_uses_argparse_error.",
+      "evidence_files": ["doc_prefix.py", "tests/test_doc_prefix.py"],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-DP-034",
+      "skill": "Extracting application version from source code in build scripts",
+      "evidence": "Get-AppVersion function in build.ps1 reads the version string directly from doc_prefix.py source code, ensuring the build artifact version matches the source.",
+      "evidence_files": ["packaging/build.ps1"],
+      "evidence_strength": "strong",
+      "transferable": true
+    },
+    {
+      "id": "SK-DP-035",
+      "skill": "Implementing confirmation dialogs before destructive operations in GUI applications",
+      "evidence": "on_apply() in DocPrefixGui shows a messagebox.askyesno confirmation dialog summarizing the number of renames before executing. Refreshes the preview after successful application.",
+      "evidence_files": ["doc_prefix_gui.pyw"],
+      "evidence_strength": "strong",
+      "transferable": true
+    }
+  ],
+  "skill_clusters": [
+    {
+      "cluster": "Filesystem Safety & Platform Awareness",
+      "skill_ids": ["SK-DP-005", "SK-DP-006", "SK-DP-007", "SK-DP-008", "SK-DP-010", "SK-DP-011", "SK-DP-031"],
+      "summary": "Comprehensive guards against Windows filesystem edge cases, symlink traversal, cyclic renames, and naming collisions."
+    },
+    {
+      "cluster": "Two-Phase Execution & Conflict Resolution",
+      "skill_ids": ["SK-DP-001", "SK-DP-002", "SK-DP-009", "SK-DP-035"],
+      "summary": "Plan-then-apply architecture with immutable plan items, explicit reason codes, and multiple conflict resolution strategies."
+    },
+    {
+      "cluster": "Input Validation & Template Processing",
+      "skill_ids": ["SK-DP-003", "SK-DP-004", "SK-DP-011", "SK-DP-012", "SK-DP-033"],
+      "summary": "Structured validation of dates, templates, filenames, and user inputs with descriptive error reporting."
+    },
+    {
+      "cluster": "Python Desktop Application Development",
+      "skill_ids": ["SK-DP-014", "SK-DP-015", "SK-DP-016", "SK-DP-017", "SK-DP-028", "SK-DP-029"],
+      "summary": "Tkinter GUI construction, keyboard shortcuts, dirty-state tracking, logic/UI separation, and zero-dependency design."
+    },
+    {
+      "cluster": "Testing & Quality Assurance",
+      "skill_ids": ["SK-DP-018", "SK-DP-019", "SK-DP-020", "SK-DP-032"],
+      "summary": "Unit tests with filesystem fixtures, mock-based deterministic testing, integration smoke tests, and error path coverage."
+    },
+    {
+      "cluster": "Build, Packaging & Release Automation",
+      "skill_ids": ["SK-DP-021", "SK-DP-022", "SK-DP-023", "SK-DP-024", "SK-DP-025", "SK-DP-026", "SK-DP-027", "SK-DP-034"],
+      "summary": "PyInstaller packaging, PowerShell build automation, SHA256 integrity verification, and GitHub Actions CI/CD with conditional release publishing."
+    },
+    {
+      "cluster": "CLI Design",
+      "skill_ids": ["SK-DP-013"],
+      "summary": "Argparse-based CLI with mutually exclusive options and structured exit codes."
+    },
+    {
+      "cluster": "Documentation",
+      "skill_ids": ["SK-DP-030"],
+      "summary": "End-user distribution documentation with troubleshooting guidance."
+    }
+  ],
+  "evidence_basis": {
+    "primary_sources": [
+      "doc_prefix.py (550 lines): Core rename logic, planning engine, CLI entry point, filesystem safety guards",
+      "doc_prefix_gui.pyw (465 lines): Tkinter GUI, form management, preview rendering, dirty-state tracking",
+      "tests/test_doc_prefix.py (433 lines): 20+ unit tests covering planning, execution, edge cases, mocking, error handling",
+      "tests/test_doc_prefix_template_validation.py (23 lines): Template validation error message tests",
+      "packaging/smoke_test.py (98 lines): End-to-end integration tests",
+      "packaging/build.ps1 (206 lines): PowerShell build script with venv, PyInstaller, hashing, staging",
+      "packaging/docprefix.spec (60 lines): PyInstaller configuration",
+      ".github/workflows/docprefix-windows.yml (101 lines): CI/CD pipeline with tests, build, artifact upload, conditional release"
+    ],
+    "secondary_sources": [
+      "README.md: Project description, usage instructions, feature overview",
+      "packaging/README_DISTRIBUTION.txt (70 lines): End-user documentation with troubleshooting",
+      ".gitignore: Minimal, focused exclusion"
+    ],
+    "methodology": "Each skill was extracted by reading the source code, tests, configuration, and documentation files directly. Skills were only included when supported by concrete implementation artifacts. Evidence strength was rated as 'strong' when multiple corroborating artifacts exist (e.g., implementation + tests), and 'moderate' when implementation exists but test coverage or secondary evidence is thinner."
+  },
+  "ambiguities_or_borderline_calls": [
+    {
+      "item": "Case-insensitive path comparison (SK-DP-031)",
+      "note": "The implementation exists in plan_renames, but the exact mechanism (Path normalization vs. explicit .lower()) was not fully visible in the explore output. Rated moderate. A stronger claim would require line-level inspection of the collision-tracking dict key normalization."
+    },
+    {
+      "item": "GUI event-driven architecture",
+      "note": "The GUI uses Tkinter's event loop and callback-based interaction, but this is essentially how all Tkinter apps work. Not extracted as a separate skill because it would overstate what is a standard framework usage pattern rather than a distinct design decision."
+    },
+    {
+      "item": "Cross-platform design intent",
+      "note": "The core logic uses pathlib.Path and avoids OS-specific APIs, but the application targets Windows (reserved names, .pyw extension, PowerShell build, Windows CI runner). Cross-platform portability is partially demonstrated in code structure but the project is explicitly Windows-scoped. Not extracted as a separate skill."
+    },
+    {
+      "item": "Error handling depth",
+      "note": "Error wrapping in apply_plan() is tested, and yyyymm_from_mtime gracefully handles OSError. However, the full error handling surface (e.g., permission errors during rename, disk-full scenarios) is not exhaustively tested. SK-DP-032 is scoped to what is demonstrably tested."
+    },
+    {
+      "item": "Antivirus-aware packaging decisions",
+      "note": "The spec file disables UPX and the project defaults to ONEDIR over ONEFILE to reduce AV false positives. This reflects an awareness of deployment realities but is a configuration choice rather than a coded capability. Folded into SK-DP-021 rather than extracted separately."
+    }
+  ],
+  "overclaim_risks": [
+    {
+      "risk": "Claiming 'security engineering' from symlink and reserved-name handling",
+      "mitigation": "These are filesystem safety guards, not security architecture. Skills are worded as specific guard implementations, not as broad security expertise."
+    },
+    {
+      "risk": "Claiming 'CI/CD engineering' from a single workflow file",
+      "mitigation": "The workflow is well-structured with concurrency control, conditional publishing, and path filtering, but it is a single pipeline for a single project. Skills are scoped to specific workflow design patterns, not to platform-level CI/CD architecture."
+    },
+    {
+      "risk": "Claiming 'desktop application development' from Tkinter usage",
+      "mitigation": "The GUI demonstrates real GUI construction skills (form layout, state management, keyboard shortcuts, dirty tracking), but Tkinter is a relatively simple toolkit. Skills are stated at the implementation level, not as broad desktop development expertise."
+    }
+  ],
+  "transferable_signal_notes": [
+    {
+      "signal": "Two-phase plan-then-apply pattern",
+      "transferability": "Directly applicable to any tool that performs batch operations: migration scripts, deployment tools, refactoring utilities, data pipelines. The pattern of 'preview before commit' is valued in production-safety-conscious environments."
+    },
+    {
+      "signal": "Explicit reason codes on skipped operations",
+      "transferability": "This is a diagnostic design pattern useful in ETL pipelines, linting tools, compliance checkers, and any system where understanding why something was skipped matters as much as what was done."
+    },
+    {
+      "signal": "Filesystem safety guards (symlinks, reserved names, cyclic renames)",
+      "transferability": "Relevant to any tool that manipulates the filesystem at scale: backup utilities, deployment scripts, file sync tools, archive managers."
+    },
+    {
+      "signal": "PowerShell build automation with venv isolation",
+      "transferability": "Applicable to any Python project shipping Windows artifacts. Demonstrates understanding of build reproducibility and dependency isolation."
+    },
+    {
+      "signal": "Mock-based deterministic testing of time-dependent logic",
+      "transferability": "Standard practice in professional Python testing. Demonstrates understanding of test isolation and reproducibility."
+    }
+  ],
+  "dedupe_notes_for_cross_repo_merge": [
+    "SK-DP-013 (argparse CLI design) likely overlaps with CLI skills in other repos. Merge by evidence strength and complexity of CLI design.",
+    "SK-DP-018 (unittest with tempfile fixtures) and SK-DP-019 (mock.patch for deterministic testing) are common Python testing patterns. Keep as separate skills but expect high overlap across Python repos.",
+    "SK-DP-024 through SK-DP-027 (GitHub Actions patterns) may overlap with CI/CD skills from other repos. Distinguish by specific patterns demonstrated (conditional release, path filtering, concurrency control).",
+    "SK-DP-029 (type annotations with future annotations) is a Python-wide practice. Dedupe across repos, keeping strongest evidence instance.",
+    "SK-DP-017 (logic/UI separation) may appear as an architectural pattern in other repos. Keep the most specific instantiation.",
+    "SK-DP-001 (two-phase execution) and SK-DP-002 (reason codes) may recur in other tooling repos. These are high-signal patterns worth preserving even if duplicated, as they show consistent design thinking."
+  ],
+  "main_takeaway": "DocPrefix demonstrates implementation-level proficiency in safety-first filesystem tooling design, with particular strength in two-phase execution workflows, explicit operational diagnostics via reason codes, Windows platform edge-case handling, and end-to-end build-test-release automation. The codebase is small but precisely engineered, with a testing discipline that covers not just happy paths but cyclic renames, symlink traversal, mtime failures, reserved device names, and conflict resolution strategies. The strongest transferable signals are the plan-then-apply pattern, the diagnostic reason-code model, and the filesystem safety guard implementations—all of which translate directly to production tooling, migration systems, and deployment automation in professional settings."
+}
